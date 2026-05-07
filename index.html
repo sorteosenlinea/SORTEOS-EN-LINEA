@@ -1,0 +1,1618 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Sorteo — Jurado</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #c9a84c;
+    --gold-light: #f0d080;
+    --dark: #0a0a0f;
+    --dark2: #12121a;
+    --dark3: #1a1a28;
+    --accent: #e63946;
+    --blue: #3a7bd5;
+    --blue-light: #6fa3f7;
+    --teal: #2ec4b6;
+    --text: #e8e0d0;
+    --text-dim: #8a8070;
+    --border: rgba(201,168,76,0.25);
+    --border-blue: rgba(58,123,213,0.35);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--dark);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  .header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(180deg, rgba(201,168,76,0.06) 0%, transparent 100%);
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.8rem;
+    letter-spacing: 4px;
+    color: var(--gold);
+    text-shadow: 0 0 30px rgba(201,168,76,0.4);
+  }
+  .logo span { color: var(--text-dim); font-size: 0.7rem; display: block; font-family: 'Space Mono'; letter-spacing: 2px; margin-top: -4px; }
+
+  .header-right { display: flex; align-items: center; gap: 12px; }
+
+  .sync-status {
+    font-size: 0.58rem;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: uppercase;
+    position: relative;
+  }
+  .sync-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--text-dim);
+    transition: background 0.4s;
+    flex-shrink: 0;
+  }
+  .sync-dot.ok { background: var(--teal); box-shadow: 0 0 8px var(--teal); }
+  .sync-dot.err { background: var(--accent); }
+  .sync-dot.loading { background: var(--gold); animation: pulse-dot 0.8s ease-in-out infinite; }
+
+  @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .sync-label-hidden {
+    color: transparent !important;
+    user-select: none;
+    pointer-events: none;
+    transition: color 0.3s ease;
+  }
+
+  .admin-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-transform: uppercase;
+  }
+  .admin-toggle:hover { border-color: var(--gold); color: var(--gold); }
+
+  .dual-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: calc(100vh - 69px);
+  }
+
+  .sorteo-panel {
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+
+  .sorteo-panel.jurado {
+    border-right: 1px solid var(--border);
+  }
+
+  .sorteo-panel.cambio {
+    border-left: 1px solid var(--border-blue);
+  }
+
+  .panel-type-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .jurado .panel-type-bar { background: linear-gradient(90deg, var(--gold), transparent); }
+  .cambio .panel-type-bar { background: linear-gradient(90deg, var(--blue), transparent); }
+
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.5rem;
+    letter-spacing: 6px;
+    line-height: 1;
+    margin-bottom: 4px;
+    margin-top: 12px;
+    text-align: center;
+  }
+  .jurado .section-title { color: var(--gold); text-shadow: 0 0 30px rgba(201,168,76,0.3); }
+  .cambio .section-title { color: var(--blue-light); text-shadow: 0 0 30px rgba(58,123,213,0.3); }
+
+  .section-sub {
+    font-size: 0.55rem;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    text-align: center;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .triple-drums {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 22px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .drum-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .drum-slot-label {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+  }
+
+  .drum {
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .drum.large {
+    width: 200px; height: 200px;
+  }
+
+  .drum.small {
+    width: 145px; height: 145px;
+  }
+
+  .jurado .drum {
+    border: 2px solid var(--gold);
+    background: radial-gradient(ellipse at 30% 30%, rgba(201,168,76,0.15) 0%, transparent 60%), var(--dark2);
+    box-shadow: 0 0 50px rgba(201,168,76,0.1), inset 0 0 50px rgba(0,0,0,0.5);
+  }
+
+  .cambio .drum {
+    border: 2px solid var(--blue);
+    background: radial-gradient(ellipse at 30% 30%, rgba(58,123,213,0.12) 0%, transparent 60%), var(--dark2);
+    box-shadow: 0 0 50px rgba(58,123,213,0.1), inset 0 0 50px rgba(0,0,0,0.5);
+  }
+
+  .drum::before {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .jurado .drum::before { border: 1px solid rgba(201,168,76,0.2); }
+  .cambio .drum::before { border: 1px solid rgba(58,123,213,0.2); }
+
+  .drum-inner { text-align: center; z-index: 1; padding: 10px; }
+
+  .drum-number {
+    font-family: 'Bebas Neue', sans-serif;
+    line-height: 1;
+  }
+
+  .drum.large .drum-number { font-size: 4rem; }
+  .drum.small .drum-number { font-size: 2.6rem; }
+
+  .jurado .drum-number { color: var(--gold); text-shadow: 0 0 25px rgba(201,168,76,0.6); }
+  .cambio .drum-number { color: var(--blue-light); text-shadow: 0 0 25px rgba(111,163,247,0.6); }
+
+  .drum-name {
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    line-height: 1.3;
+  }
+
+  .drum.large .drum-name { font-size: 0.53rem; max-width: 130px; margin-top: 5px; }
+  .drum.small .drum-name { font-size: 0.44rem; max-width: 100px; margin-top: 3px; }
+
+  .drum.spinning .drum-inner { animation: spin-numbers 0.08s linear infinite; }
+
+  @keyframes spin-numbers {
+    0%   { opacity: 1; transform: translateY(0); }
+    50%  { opacity: 0.3; transform: translateY(-4px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  .jurado .drum.spinning {
+    animation: drum-pulse-gold 0.15s ease-in-out infinite alternate;
+    border-color: var(--gold-light);
+    box-shadow: 0 0 70px rgba(201,168,76,0.35), inset 0 0 50px rgba(0,0,0,0.5);
+  }
+  .cambio .drum.spinning {
+    animation: drum-pulse-blue 0.15s ease-in-out infinite alternate;
+    border-color: var(--blue-light);
+    box-shadow: 0 0 70px rgba(58,123,213,0.35), inset 0 0 50px rgba(0,0,0,0.5);
+  }
+
+  @keyframes drum-pulse-gold {
+    from { transform: scale(1); }
+    to   { transform: scale(1.02); }
+  }
+  @keyframes drum-pulse-blue {
+    from { transform: scale(1); }
+    to   { transform: scale(1.02); }
+  }
+
+  .block-indicator {
+    font-size: 0.52rem;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .block-indicator span { color: var(--gold); font-weight: 700; }
+
+  .cambio-block-indicator {
+    font-size: 0.52rem;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .cambio-block-indicator span { color: var(--blue-light); font-weight: 700; }
+
+  .auto-reset-notice {
+    font-size: 0.52rem;
+    letter-spacing: 1px;
+    color: var(--teal);
+    text-align: center;
+    margin-top: 6px;
+    height: 16px;
+    transition: opacity 0.3s;
+  }
+
+  .btn-sortear {
+    border: none;
+    color: var(--dark);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.15rem;
+    letter-spacing: 6px;
+    padding: 14px 42px;
+    cursor: pointer;
+    clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+    transition: all 0.3s;
+    margin-bottom: 8px;
+  }
+
+  .jurado .btn-sortear { background: linear-gradient(135deg, var(--gold) 0%, #a07830 100%); }
+  .cambio .btn-sortear { background: linear-gradient(135deg, var(--blue) 0%, #2055a0 100%); color: white; }
+
+  .jurado .btn-sortear:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 100%);
+    box-shadow: 0 0 40px rgba(201,168,76,0.5);
+    transform: scale(1.03);
+  }
+  .cambio .btn-sortear:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--blue-light) 0%, var(--blue) 100%);
+    box-shadow: 0 0 40px rgba(58,123,213,0.5);
+    transform: scale(1.03);
+  }
+
+  .btn-sortear:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-reset {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 2px;
+    padding: 7px 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-transform: uppercase;
+  }
+  .btn-reset:hover { border-color: var(--accent); color: var(--accent); }
+
+  .results-container { width: 100%; max-width: 460px; margin-top: 20px; }
+
+  .results-title {
+    font-size: 0.55rem;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .results-round-badge {
+    background: var(--dark3);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    font-size: 0.5rem;
+    letter-spacing: 1px;
+    color: var(--gold);
+  }
+
+  .round-group {
+    margin-bottom: 14px;
+    border: 1px solid rgba(201,168,76,0.1);
+    padding: 10px;
+    background: rgba(201,168,76,0.02);
+    animation: slide-in 0.4s ease-out;
+  }
+
+  .round-group-label {
+    font-size: 0.48rem;
+    letter-spacing: 2px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    opacity: 0.7;
+  }
+
+  .result-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(201,168,76,0.06);
+    animation: slide-in 0.4s ease-out;
+  }
+
+  .result-item:last-child { border-bottom: none; }
+
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateX(-16px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .result-pos { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; width: 22px; text-align: right; flex-shrink: 0; }
+  .jurado .result-pos { color: var(--gold); }
+  .cambio  .result-pos { color: var(--blue-light); }
+
+  .result-num {
+    background: var(--dark3);
+    border: 1px solid var(--border);
+    width: 30px; height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    flex-shrink: 0;
+  }
+  .jurado .result-num { color: var(--gold); }
+  .cambio  .result-num { color: var(--blue-light); border-color: var(--border-blue); }
+
+  .result-name { font-size: 0.6rem; letter-spacing: 0.5px; color: var(--text); line-height: 1.3; }
+
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.9);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(6px);
+  }
+  .modal-overlay.hidden { display: none; }
+
+  .modal-box {
+    background: var(--dark2);
+    border: 1px solid var(--gold);
+    padding: 40px;
+    width: 360px;
+    text-align: center;
+    box-shadow: 0 0 80px rgba(201,168,76,0.2);
+  }
+
+  .modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 4px; color: var(--gold); margin-bottom: 6px; }
+  .modal-sub   { font-size: 0.6rem; color: var(--text-dim); letter-spacing: 2px; margin-bottom: 24px; }
+
+  .pin-display { display: flex; gap: 7px; justify-content: center; margin-bottom: 20px; }
+  .pin-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--border); background: transparent; transition: all 0.2s; }
+  .pin-dot.filled { background: var(--gold); border-color: var(--gold); }
+
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 12px; }
+  .pin-key {
+    background: var(--dark3); border: 1px solid var(--border); color: var(--text);
+    font-family: 'Space Mono', monospace; font-size: 1rem; padding: 13px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .pin-key:hover  { border-color: var(--gold); color: var(--gold); }
+  .pin-key:active { transform: scale(0.95); }
+  .pin-error { font-size: 0.58rem; color: var(--accent); letter-spacing: 2px; height: 16px; margin-top: 4px; }
+
+  .admin-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.92);
+    z-index: 900;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-y: auto;
+    backdrop-filter: blur(8px);
+    padding: 24px 16px;
+  }
+  .admin-modal.hidden { display: none; }
+
+  .admin-box {
+    background: var(--dark2);
+    border: 1px solid var(--border);
+    width: 100%;
+    max-width: 1000px;
+    padding: 32px;
+    position: relative;
+  }
+
+  .admin-close {
+    position: absolute; top: 16px; right: 20px;
+    background: none; border: none; color: var(--text-dim);
+    font-size: 1.4rem; cursor: pointer; transition: color 0.2s;
+  }
+  .admin-close:hover { color: var(--accent); }
+
+  .admin-main-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem; letter-spacing: 4px; color: var(--gold);
+    margin-bottom: 4px;
+  }
+  .admin-main-sub { font-size: 0.6rem; color: var(--text-dim); letter-spacing: 2px; margin-bottom: 28px; }
+
+  .sheets-section {
+    background: var(--dark3);
+    border: 1px solid var(--border-blue);
+    padding: 20px;
+    margin-bottom: 28px;
+  }
+
+  .sheets-label {
+    font-size: 0.6rem; letter-spacing: 3px; color: var(--blue-light);
+    text-transform: uppercase; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .sheets-grid {
+    display: grid;
+    grid-template-columns: 1fr 140px;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .sheets-input {
+    background: var(--dark); border: 1px solid var(--border);
+    color: var(--text); font-family: 'Space Mono', monospace;
+    font-size: 0.65rem; padding: 10px 12px; width: 100%;
+    letter-spacing: 1px; outline: none;
+    transition: border-color 0.2s;
+  }
+  .sheets-input:focus { border-color: var(--blue); }
+  .sheets-input::placeholder { color: var(--text-dim); }
+
+  .btn-sync {
+    background: linear-gradient(135deg, var(--blue) 0%, #1a4aaa 100%);
+    border: none; color: white;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.62rem; letter-spacing: 2px;
+    padding: 10px 14px; cursor: pointer;
+    text-transform: uppercase; transition: all 0.3s;
+    white-space: nowrap;
+  }
+  .btn-sync:hover { background: linear-gradient(135deg, var(--blue-light), var(--blue)); box-shadow: 0 0 20px rgba(58,123,213,0.4); }
+  .btn-sync:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .sheets-help {
+    font-size: 0.55rem; color: var(--text-dim); line-height: 1.7;
+    margin-top: 12px; letter-spacing: 0.5px;
+  }
+  .sheets-help code { color: var(--blue-light); background: rgba(58,123,213,0.1); padding: 1px 5px; }
+
+  .admin-dual {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .admin-panel-section {
+    border: 1px solid var(--border);
+    padding: 20px;
+  }
+  .admin-panel-section.cambio-section { border-color: var(--border-blue); }
+
+  .admin-panel-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.3rem; letter-spacing: 3px;
+    margin-bottom: 16px; padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .jurado-title { color: var(--gold); border-color: rgba(201,168,76,0.2); }
+  .cambio-title { color: var(--blue-light); border-color: rgba(58,123,213,0.2); }
+
+  .badge-jurado { background: var(--gold); color: var(--dark); font-size: 0.55rem; letter-spacing: 1px; padding: 2px 7px; }
+  .badge-cambio { background: var(--blue); color: white; font-size: 0.55rem; letter-spacing: 1px; padding: 2px 7px; }
+
+  .admin-section-label {
+    font-size: 0.58rem; letter-spacing: 3px; color: var(--text-dim);
+    text-transform: uppercase; margin-bottom: 10px; margin-top: 18px;
+  }
+
+  .blocks-preview {
+    background: var(--dark); border: 1px solid var(--border);
+    padding: 10px; margin-bottom: 8px; max-height: 200px; overflow-y: auto;
+  }
+  .block-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 0; border-bottom: 1px solid rgba(201,168,76,0.06);
+    font-size: 0.53rem;
+  }
+  .block-row:last-child { border-bottom: none; }
+  .block-row-num { color: var(--gold); width: 20px; text-align: right; flex-shrink: 0; font-family: 'Bebas Neue'; font-size: 0.8rem; }
+  .block-row-name { color: var(--text); flex: 1; }
+  .block-row-round { color: var(--text-dim); font-size: 0.48rem; letter-spacing: 1px; }
+  .block-row.current-round { background: rgba(201,168,76,0.06); }
+  .block-row.cambio-current { background: rgba(58,123,213,0.06); }
+
+  .mode-toggle { display: flex; border: 1px solid var(--border); margin-bottom: 4px; }
+  .mode-btn {
+    flex: 1; background: none; border: none; color: var(--text-dim);
+    font-family: 'Space Mono', monospace; font-size: 0.6rem;
+    letter-spacing: 1px; padding: 9px 6px; cursor: pointer;
+    transition: all 0.2s; text-transform: uppercase;
+  }
+  .mode-btn.active-gold  { background: var(--gold); color: var(--dark); font-weight: 700; }
+  .mode-btn.active-blue  { background: var(--blue); color: white; font-weight: 700; }
+
+  .mode-desc { font-size: 0.55rem; color: var(--text-dim); line-height: 1.5; margin-bottom: 14px; padding: 6px 0; }
+
+  .participants-list {
+    display: flex; flex-direction: column; gap: 3px;
+    max-height: 240px; overflow-y: auto; padding-right: 3px;
+  }
+  .participants-list::-webkit-scrollbar { width: 3px; }
+  .participants-list::-webkit-scrollbar-track { background: var(--dark); }
+  .participants-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .participant-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 9px; border: 1px solid transparent;
+    cursor: pointer; transition: all 0.2s;
+    background: var(--dark3);
+  }
+  .participant-row:hover { border-color: var(--border); }
+  .participant-row.selected-gold  { border-color: var(--gold); background: rgba(201,168,76,0.08); }
+  .participant-row.selected-blue  { border-color: var(--blue); background: rgba(58,123,213,0.08); }
+
+  .p-num { font-family: 'Bebas Neue', sans-serif; font-size: 0.95rem; width: 20px; text-align: right; flex-shrink: 0; }
+  .jurado-col .p-num { color: var(--gold); }
+  .cambio-col  .p-num { color: var(--blue-light); }
+
+  .p-name { font-size: 0.54rem; letter-spacing: 0.3px; color: var(--text); flex: 1; line-height: 1.3; }
+
+  .p-drawn-badge {
+    font-size: 0.5rem; font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 1px; padding: 1px 5px; border-radius: 8px;
+    flex-shrink: 0; min-width: 22px; text-align: center;
+    background: rgba(230,57,70,0.18); color: var(--accent);
+    border: 1px solid rgba(230,57,70,0.35);
+    transition: all 0.2s;
+  }
+  .p-drawn-badge.empty { background: transparent; border-color: transparent; }
+
+  .p-check {
+    width: 20px; height: 20px; border: 1px solid var(--border);
+    border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0;
+    font-size: 0.55rem; font-weight: 700; transition: all 0.2s;
+  }
+  .selected-gold .p-check { background: var(--gold); border-color: var(--gold); color: var(--dark); }
+  .selected-blue .p-check { background: var(--blue); border-color: var(--blue); color: white; }
+
+  .queue-display {
+    background: var(--dark); border: 1px solid var(--border);
+    padding: 10px; min-height: 50px; margin-bottom: 6px;
+  }
+  .queue-item {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 7px; margin: 2px;
+    font-size: 0.54rem;
+  }
+  .queue-item-gold { background: rgba(201,168,76,0.12); border: 1px solid rgba(201,168,76,0.3); color: var(--gold); }
+  .queue-item-blue { background: rgba(58,123,213,0.12); border: 1px solid rgba(58,123,213,0.3); color: var(--blue-light); }
+
+  .queue-remove { cursor: pointer; color: var(--accent); font-size: 0.75rem; line-height: 1; }
+  .queue-empty  { font-size: 0.57rem; color: var(--text-dim); font-style: italic; letter-spacing: 1px; }
+
+  .admin-info {
+    background: rgba(230,57,70,0.08); border: 1px solid rgba(230,57,70,0.2);
+    padding: 10px 12px; font-size: 0.57rem; color: rgba(230,57,70,0.8);
+    line-height: 1.6; margin-top: 20px; letter-spacing: 0.5px;
+  }
+
+  .particle {
+    position: fixed; width: 4px; height: 4px;
+    border-radius: 50%; pointer-events: none;
+    animation: particle-fly 1.2s ease-out forwards;
+  }
+  @keyframes particle-fly {
+    0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+    100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0); }
+  }
+
+  .celebration { position: fixed; inset: 0; pointer-events: none; z-index: 500; display: none; }
+  .confetti-piece {
+    position: absolute; width: 8px; height: 8px;
+    animation: confetti-fall linear forwards;
+  }
+  @keyframes confetti-fall {
+    0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+  }
+
+  .status-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 3px; background: var(--dark3); }
+  .status-fill-j { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-light)); width: 0%; transition: width 0.05s linear; position: absolute; top: 0; left: 0; }
+  .status-fill-c { height: 100%; background: linear-gradient(90deg, var(--blue), var(--blue-light)); width: 0%; transition: width 0.05s linear; position: absolute; top: 0; left: 50%; }
+
+  @media (max-width: 1000px) {
+    .triple-drums { gap: 8px; }
+    .drum.small { width: 120px; height: 120px; }
+  }
+
+  @media (max-width: 760px) {
+    .dual-layout { grid-template-columns: 1fr; }
+    .sorteo-panel.jurado { border-right: none; border-bottom: 1px solid var(--border); }
+    .admin-dual { grid-template-columns: 1fr; }
+    .header { padding: 14px 18px; }
+    .triple-drums { flex-direction: column; gap: 10px; }
+    .drum.small { width: 140px; height: 140px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="modal-overlay hidden" id="pinModal">
+  <div class="modal-box">
+    <div class="modal-title">ACCESO</div>
+    <div class="modal-sub">Panel de administración · Clave de 6 dígitos</div>
+    <div class="pin-display" id="pinDisplay"></div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pinPress('1')">1</button>
+      <button class="pin-key" onclick="pinPress('2')">2</button>
+      <button class="pin-key" onclick="pinPress('3')">3</button>
+      <button class="pin-key" onclick="pinPress('4')">4</button>
+      <button class="pin-key" onclick="pinPress('5')">5</button>
+      <button class="pin-key" onclick="pinPress('6')">6</button>
+      <button class="pin-key" onclick="pinPress('7')">7</button>
+      <button class="pin-key" onclick="pinPress('8')">8</button>
+      <button class="pin-key" onclick="pinPress('9')">9</button>
+      <button class="pin-key" onclick="pinClear()" style="font-size:0.65rem;letter-spacing:1px;">CLR</button>
+      <button class="pin-key" onclick="pinPress('0')">0</button>
+      <button class="pin-key" onclick="pinCancel()" style="font-size:0.7rem;color:var(--text-dim);">✕</button>
+    </div>
+    <div class="pin-error" id="pinError"></div>
+  </div>
+</div>
+
+<div class="admin-modal hidden" id="adminModal">
+  <div class="admin-box">
+    <button class="admin-close" onclick="closeAdmin()">✕</button>
+    <div class="admin-main-title">CONTROL DE SORTEO</div>
+    <div class="admin-main-sub">Panel privado · Sorteo Jurado = 3 por ronda · Cambio de Jurado = 1 con auto-reinicio</div>
+
+    <div class="sheets-section">
+      <div class="sheets-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Vinculación con Google Sheets
+      </div>
+      <div class="sheets-grid">
+        <input class="sheets-input" id="sheetsUrl" type="text"
+          placeholder="Pegar URL de Google Sheets..."
+          onchange="saveSheetsUrl()" />
+        <button class="btn-sync" onclick="syncFromSheets()" id="btnSync">↻ SINCRONIZAR</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap;">
+        <button onclick="startAutoSync()" style="background:linear-gradient(135deg,var(--teal),#1a8a80);border:none;color:var(--dark);font-family:'Space Mono',monospace;font-size:0.6rem;letter-spacing:2px;padding:8px 16px;cursor:pointer;text-transform:uppercase;font-weight:700;">↺ ACTIVAR AUTO-SYNC</button>
+        <button onclick="stopAutoSync()" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-family:'Space Mono',monospace;font-size:0.6rem;letter-spacing:2px;padding:8px 16px;cursor:pointer;text-transform:uppercase;">◼ DETENER</button>
+        <button onclick="forceSyncNow()" style="background:linear-gradient(135deg,var(--accent),#c1121f);border:none;color:white;font-family:'Space Mono',monospace;font-size:0.6rem;letter-spacing:2px;padding:8px 16px;cursor:pointer;text-transform:uppercase;font-weight:700;">⟳ FORZAR AHORA</button>
+        <button onclick="testConnection()" style="background:linear-gradient(135deg,#ff9800,#f57c00);border:none;color:white;font-family:'Space Mono',monospace;font-size:0.6rem;letter-spacing:2px;padding:8px 16px;cursor:pointer;text-transform:uppercase;font-weight:700;">🔍 PROBAR CONEXIÓN</button>
+        <span id="autoSyncStatus" style="font-size:0.55rem;letter-spacing:1px;color:var(--text-dim);">Auto-sync inactivo</span>
+      </div>
+      <div class="sheets-help" style="margin-top:10px;">
+        <strong style="color:var(--text)">Cómo vincular:</strong><br>
+        1. Google Sheet → <strong style="color:var(--text)">Archivo → Compartir → Publicar en la web</strong><br>
+        2. Selecciona la hoja → formato <code>CSV</code> → clic <strong style="color:var(--text)">Publicar</strong><br>
+        3. Pega la URL aquí → usa <strong style="color:var(--accent)">⟳ FORZAR AHORA</strong> para actualizar<br>
+        <br>
+        <strong style="color:var(--text)">Columnas:</strong> <code>ID_JURADO</code> · <code>RONDA_JURADO</code> · <code>ID_CAMBIO</code> · <code>RONDA_CAMBIO</code>
+      </div>
+    </div>
+
+    <div class="admin-dual">
+      <div class="admin-panel-section jurado-col">
+        <div class="admin-panel-title jurado-title">
+          <span class="badge-jurado">SORTEO</span> JURADO · 3 por ronda
+        </div>
+        <div class="admin-section-label">Modo de operación</div>
+        <div class="mode-toggle">
+          <button class="mode-btn active-gold" id="modeJAleatorio" onclick="setMode('jurado','aleatorio')">Aleatorio</button>
+          <button class="mode-btn" id="modeJPredefinido" onclick="setMode('jurado','predefinido')">Predefinido</button>
+        </div>
+        <div class="mode-desc" id="modeJDesc">Modo aleatorio: los 3 resultados se eligen al azar cada ronda.</div>
+        <div id="predefinidoJSection" style="display:none">
+          <div class="admin-section-label">Bloques predefinidos (3 por ronda)</div>
+          <div id="blocksJPreview" class="blocks-preview"><span class="queue-empty">Sin bloques predefinidos</span></div>
+          <div style="font-size:0.5rem;color:var(--text-dim);margin-bottom:12px;letter-spacing:1px;">Al agotarse los bloques, se elige al azar. Ronda actual: <span id="currentRoundJLabel" style="color:var(--gold)">1</span></div>
+          <div class="admin-section-label">Agregar participantes a cola</div>
+          <div style="font-size:0.5rem;color:var(--text-dim);margin-bottom:8px;letter-spacing:0.5px;">
+            <span style="color:var(--gold)">Clic izquierdo</span> = agregar a cola · <span style="color:var(--accent)">Clic derecho</span> = quitar uno · El contador rojo muestra cuántas veces fue sorteado
+          </div>
+          <div class="participants-list jurado-col" id="adminJParticipants"></div>
+        </div>
+      </div>
+
+      <div class="admin-panel-section cambio-section cambio-col">
+        <div class="admin-panel-title cambio-title">
+          <span class="badge-cambio">SORTEO</span> CAMBIO · 1 y auto-reinicia
+        </div>
+        <div class="admin-section-label">Modo de operación</div>
+        <div class="mode-toggle">
+          <button class="mode-btn active-blue" id="modeCBAleatorio" onclick="setMode('cambio','aleatorio')">Aleatorio</button>
+          <button class="mode-btn" id="modeCBPredefinido" onclick="setMode('cambio','predefinido')">Predefinido</button>
+        </div>
+        <div class="mode-desc" id="modeCBDesc">Modo aleatorio: 1 resultado al azar, luego se autoreinicia.</div>
+        <div id="predefinidoCBSection" style="display:none">
+          <div class="admin-section-label">Cola predefinida (1 por ronda, auto-reinicio)</div>
+          <div id="blocksCBPreview" class="blocks-preview"><span class="queue-empty">Sin predefinidos</span></div>
+          <div style="font-size:0.5rem;color:var(--text-dim);margin-bottom:12px;letter-spacing:1px;">Al agotarse, elige al azar. Ronda actual: <span id="currentRoundCBLabel" style="color:var(--blue-light)">1</span></div>
+          <div class="admin-section-label">Agregar participantes</div>
+          <div style="font-size:0.5rem;color:var(--text-dim);margin-bottom:8px;letter-spacing:0.5px;">
+            <span style="color:var(--blue-light)">Clic izquierdo</span> = agregar · <span style="color:var(--accent)">Clic derecho</span> = quitar uno · El contador rojo muestra veces sorteado
+          </div>
+          <div class="participants-list cambio-col" id="adminCBParticipants"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-info">
+      ⚠ Este panel es estrictamente confidencial. Los docentes <strong style="color:var(--text)">pueden repetirse en rondas</strong>. El contador rojo (×N) indica cuántas veces ha sido sorteado. En modo predefinido: clic izquierdo agrega a la cola, clic derecho quita uno.
+    </div>
+  </div>
+</div>
+
+<div class="celebration" id="celebration"></div>
+
+<div class="header">
+  <div class="logo">
+    SORTEO OFICIAL
+    <span>Sistema de sorteo electrónico · Jurado</span>
+  </div>
+  <div class="header-right">
+    <div class="sync-status">
+      <div class="sync-dot" id="syncDot"></div>
+      <span id="syncLabel" class="sync-label-hidden">No vinculado</span>
+    </div>
+    <button class="admin-toggle" onclick="openPinModal()">⚙ ADMIN</button>
+  </div>
+</div>
+
+<div class="dual-layout">
+  <div class="sorteo-panel jurado">
+    <div class="panel-type-bar"></div>
+    <div class="section-title">SORTEO JURADO</div>
+    <div class="section-sub">Selección de 3 miembros del jurado por ronda</div>
+    <div class="block-indicator" id="juradoBlockIndicator">Ronda <span id="juradoRoundNum">1</span></div>
+    <div class="triple-drums">
+      <div class="drum-slot">
+        <div class="drum-slot-label">JURADO 1</div>
+        <div class="drum small" id="drumJ1">
+          <div class="drum-inner">
+            <div class="drum-number" id="drumJ1Number">—</div>
+            <div class="drum-name" id="drumJ1Name">Sortear</div>
+          </div>
+        </div>
+      </div>
+      <div class="drum-slot">
+        <div class="drum-slot-label">JURADO 2</div>
+        <div class="drum small" id="drumJ2">
+          <div class="drum-inner">
+            <div class="drum-number" id="drumJ2Number">—</div>
+            <div class="drum-name" id="drumJ2Name">Sortear</div>
+          </div>
+        </div>
+      </div>
+      <div class="drum-slot">
+        <div class="drum-slot-label">JURADO 3</div>
+        <div class="drum small" id="drumJ3">
+          <div class="drum-inner">
+            <div class="drum-number" id="drumJ3Number">—</div>
+            <div class="drum-name" id="drumJ3Name">Sortear</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <button class="btn-sortear" id="btnSortearJ" onclick="realizarSorteoJurado()">SORTEAR JURADO (×3)</button>
+    <button class="btn-reset" onclick="resetSorteo('jurado')">↺ REINICIAR RONDA</button>
+    <div class="results-container jurado" id="resultsJContainer" style="display:none">
+      <div class="results-title">
+        Historial — Jurado
+        <span class="results-round-badge" id="juradoRoundsCount">0 rondas</span>
+      </div>
+      <div id="resultsJList"></div>
+    </div>
+  </div>
+
+  <div class="sorteo-panel cambio">
+    <div class="panel-type-bar"></div>
+    <div class="section-title">CAMBIO DE JURADO</div>
+    <div class="section-sub">1 reemplazo por sorteo · Reinicio automático</div>
+    <div class="cambio-block-indicator" id="cambioBlockIndicator">Sorteo <span id="cambioRoundNum">1</span></div>
+    <div class="drum-container" style="margin-bottom:22px;">
+      <div class="drum large" id="drumCB">
+        <div class="drum-inner">
+          <div class="drum-number" id="drumCBNumber">—</div>
+          <div class="drum-name" id="drumCBName">Presione sortear</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn-sortear" id="btnSortearCB" onclick="realizarSorteoCambio()">SORTEAR CAMBIO</button>
+    <button class="btn-reset" onclick="resetSorteo('cambio')">↺ REINICIAR</button>
+    <div class="auto-reset-notice" id="autoResetNotice"></div>
+    <div class="results-container cambio" id="resultsCBContainer" style="display:none">
+      <div class="results-title">Historial — Cambio de Jurado</div>
+      <div id="resultsCBList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="status-bar">
+  <div class="status-fill-j" id="statusFillJ"></div>
+  <div class="status-fill-c" id="statusFillC"></div>
+</div>
+
+<script>
+const PIN = "759348";
+const PIN_LENGTH = 6;
+
+const PARTICIPANTS = [
+  { id: 1, name: "ACOSTA Y GUTIERREZ, ALEJANDRO EDGARD" },
+  { id: 2, name: "AGUILAR DEL CARPIO, DAVID ERNESTO" },
+  { id: 3, name: "AROQUIPA APAZA, ORLANDO" },
+  { id: 4, name: "ARRIETA MUÑOZ NAJAR, LUIS ALBERTO" },
+  { id: 5, name: "BAUTISTA LOPEZ, JULIANA MERY" },
+  { id: 6, name: "BOLIVAR DIAZ, EDGAR JUAN" },
+  { id: 7, name: "CACERES CABANA, YEZELIA DANIRA" },
+  { id: 8, name: "CALISAYA MESTAS, LILIANA" },
+  { id: 9, name: "CAMPOS ASCUÑA, LUIS MIGUEL" },
+  { id: 10, name: "CCOPA CAMA, AMADOR JESUS" },
+  { id: 11, name: "CHAVEZ CUARITE, JOSE LUIS" },
+  { id: 12, name: "CHAVEZ MEDRANO, ALEJANDRO ALFREDO" },
+  { id: 13, name: "CHOQUE LUZA, FERNANDO IVAN" },
+  { id: 14, name: "CUADROS LINARES, LUIS DUGASVILI" },
+  { id: 15, name: "CUENTAS GALINDO, IVAN" },
+  { id: 16, name: "HINOJOSA PEREZ, ANATOLIA HORTENCIA" },
+  { id: 17, name: "HUANCA ZUÑIGA, MARIELA IVETTE" },
+  { id: 18, name: "LIMA HERCILLA, JOSE" },
+  { id: 19, name: "MORALES GONZALES, ANTONIO VICTOR" },
+  { id: 20, name: "PACHECO SANTOS, BERNABE FELIX" },
+  { id: 21, name: "QUENAYA CALLE, EDMUNDO CARMELO" },
+  { id: 22, name: "REGENTE PACHECO, PERCY ALBERTO" },
+  { id: 23, name: "ROJAS LOPEZ, JOSE LUIS ERNESTO" },
+  { id: 24, name: "RONDON ARCE, WILVER RONALD" },
+  { id: 25, name: "SOBENES SALAS, JULIO AUGUSTO" },
+  { id: 26, name: "SUAREZ CAHUANA, HEBERT" },
+  { id: 27, name: "TELLEZ ESPINOZA, FREDDY FLAVIO" },
+  { id: 28, name: "TICONA LECAROS, ALFONSO RAFAEL" },
+  { id: 29, name: "VALDIVIA CONCHA, STEPHAN ALBERTI" },
+  { id: 30, name: "VELARDE BORDA, FREDY HERBERT" },
+  { id: 31, name: "VELASQUEZ CHACON, ERIKA" },
+  { id: 32, name: "VERA NINACONDOR, CARLOS PEDRO" },
+  { id: 33, name: "ZEVALLOS RODRIGUEZ, OSWALDO LEONARDO" },
+  { id: 34, name: "ZUZUNAGA MELGAR, JOSE DOMINGO" }
+];
+
+const STATE = {
+  jurado: { mode: 'aleatorio', predefinedBlocks: [], currentBlockIndex: 0, roundsDone: [], allUsedIds: [], drawCounts: {}, isSpinning: false },
+  cambio: { mode: 'aleatorio', predefinedQueue: [], currentQueueIndex: 0, resultHistory: [], allUsedIds: [], drawCounts: {}, isSpinning: false }
+};
+
+let pinBuffer = '';
+
+function buildPinDots() {
+  const el = document.getElementById('pinDisplay');
+  el.innerHTML = '';
+  for (let i = 0; i < PIN_LENGTH; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'pin-dot' + (i < pinBuffer.length ? ' filled' : '');
+    el.appendChild(dot);
+  }
+}
+
+function openPinModal() {
+  pinBuffer = '';
+  buildPinDots();
+  document.getElementById('pinError').textContent = '';
+  document.getElementById('pinModal').classList.remove('hidden');
+}
+
+function pinCancel() { document.getElementById('pinModal').classList.add('hidden'); }
+
+function pinPress(d) {
+  if (pinBuffer.length >= PIN_LENGTH) return;
+  pinBuffer += d;
+  buildPinDots();
+  if (pinBuffer.length === PIN_LENGTH) setTimeout(checkPin, 150);
+}
+
+function pinClear() {
+  pinBuffer = '';
+  buildPinDots();
+  document.getElementById('pinError').textContent = '';
+}
+
+function checkPin() {
+  if (pinBuffer === PIN) {
+    document.getElementById('pinModal').classList.add('hidden');
+    openAdmin();
+  } else {
+    document.getElementById('pinError').textContent = 'CLAVE INCORRECTA';
+    pinBuffer = '';
+    buildPinDots();
+    setTimeout(() => document.getElementById('pinError').textContent = '', 1800);
+  }
+}
+
+function openAdmin() {
+  document.getElementById('adminModal').classList.remove('hidden');
+  const saved = localStorage.getItem('sorteo_sheets_url');
+  if (saved) document.getElementById('sheetsUrl').value = saved;
+  renderAdmin('jurado');
+  renderAdmin('cambio');
+}
+
+function closeAdmin() { document.getElementById('adminModal').classList.add('hidden'); }
+
+function saveSheetsUrl() {
+  const url = document.getElementById('sheetsUrl').value.trim();
+  localStorage.setItem('sorteo_sheets_url', url);
+  console.log('URL guardada:', url);
+}
+
+function setMode(lottery, m) {
+  STATE[lottery].mode = m;
+  const prefix = lottery === 'jurado' ? 'J' : 'CB';
+  const colorClass = lottery === 'jurado' ? 'active-gold' : 'active-blue';
+  const elAleatorio = document.getElementById(`mode${prefix}Aleatorio`);
+  const elPredefinido = document.getElementById(`mode${prefix}Predefinido`);
+  const elSection = document.getElementById(`predefinido${prefix}Section`);
+  const descEl = document.getElementById(`mode${prefix}Desc`);
+  if (elAleatorio) elAleatorio.className = 'mode-btn' + (m === 'aleatorio' ? ` ${colorClass}` : '');
+  if (elPredefinido) elPredefinido.className = 'mode-btn' + (m === 'predefinido' ? ` ${colorClass}` : '');
+  if (elSection) elSection.style.display = m === 'predefinido' ? 'block' : 'none';
+  if (descEl) {
+    descEl.textContent = lottery === 'jurado'
+      ? (m === 'aleatorio' ? 'Modo aleatorio: los 3 resultados de cada ronda se eligen al azar.' : 'Modo predefinido: cada ronda saca el siguiente bloque de 3.')
+      : (m === 'aleatorio' ? 'Modo aleatorio: 1 resultado al azar por sorteo, luego autoreinicio.' : 'Modo predefinido: cada sorteo saca el siguiente de la cola.');
+  }
+}
+
+function renderAdmin(lottery) {
+  const prefix = lottery === 'jurado' ? 'J' : 'CB';
+  const colorSuffix = lottery === 'jurado' ? 'gold' : 'blue';
+  const s = STATE[lottery];
+  const el = document.getElementById(`admin${prefix}Participants`);
+  if (!el) return;
+  el.innerHTML = '';
+  const allPredefined = lottery === 'jurado' ? s.predefinedBlocks.flat() : s.predefinedQueue;
+  const predefinedCount = {};
+  allPredefined.forEach(id => { predefinedCount[id] = (predefinedCount[id] || 0) + 1; });
+  const drawCounts = s.drawCounts || {};
+  PARTICIPANTS.forEach(p => {
+    const timesDrawn = drawCounts[p.id] || 0;
+    const timesQueued = predefinedCount[p.id] || 0;
+    const isSelected = timesQueued > 0;
+    const row = document.createElement('div');
+    row.className = `participant-row${isSelected ? ` selected-${colorSuffix}` : ''}`;
+    row.innerHTML = `
+      <span class="p-num">${p.id}</span>
+      <span class="p-name">${p.name}</span>
+      ${timesDrawn > 0 ? `<span class="p-drawn-badge" title="Veces sorteado">${timesDrawn}×</span>` : '<span class="p-drawn-badge empty"></span>'}
+      ${isSelected ? `<span class="p-check">${timesQueued}</span>` : '<span class="p-check"></span>'}
+    `;
+    row.onclick = () => toggleParticipant(lottery, p.id, false);
+    row.oncontextmenu = (e) => { e.preventDefault(); toggleParticipant(lottery, p.id, true); };
+    el.appendChild(row);
+  });
+  renderBlocksPreview(lottery);
+  updateBlockIndicator('jurado');
+  updateBlockIndicator('cambio');
+}
+
+function toggleParticipant(lottery, id, remove = false) {
+  if (lottery === 'jurado') {
+    const flat = STATE.jurado.predefinedBlocks.flat();
+    if (remove) { const idx = flat.lastIndexOf(id); if (idx !== -1) flat.splice(idx, 1); }
+    else { flat.push(id); }
+    STATE.jurado.predefinedBlocks = chunkArray(flat, 3);
+  } else {
+    const q = STATE.cambio.predefinedQueue;
+    if (remove) { const idx = q.lastIndexOf(id); if (idx !== -1) q.splice(idx, 1); }
+    else { q.push(id); }
+  }
+  renderAdmin(lottery);
+}
+
+function chunkArray(arr, size) {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
+  return chunks;
+}
+
+function renderBlocksPreview(lottery) {
+  if (lottery === 'jurado') {
+    const el = document.getElementById('blocksJPreview');
+    const blocks = STATE.jurado.predefinedBlocks;
+    const currentIdx = STATE.jurado.currentBlockIndex;
+    if (blocks.length === 0) { el.innerHTML = '<span class="queue-empty">Sin bloques predefinidos</span>'; return; }
+    el.innerHTML = blocks.map((block, bi) => block.map((id, ii) => {
+      const p = PARTICIPANTS.find(x => x.id === id);
+      return `<div class="block-row${bi === currentIdx ? ' current-round' : ''}">
+        <span class="block-row-num">${id}</span>
+        <span class="block-row-name">${p ? p.name.split(',')[0] : '?'}</span>
+        <span class="block-row-round">Ronda ${bi+1} · ${ii+1}/3</span>
+      </div>`;
+    }).join('')).join('');
+    document.getElementById('currentRoundJLabel').textContent = currentIdx + 1;
+  } else {
+    const el = document.getElementById('blocksCBPreview');
+    const q = STATE.cambio.predefinedQueue;
+    const currentIdx = STATE.cambio.currentQueueIndex;
+    if (q.length === 0) { el.innerHTML = '<span class="queue-empty">Sin predefinidos</span>'; return; }
+    el.innerHTML = q.map((id, i) => {
+      const p = PARTICIPANTS.find(x => x.id === id);
+      return `<div class="block-row${i === currentIdx ? ' cambio-current' : ''}">
+        <span class="block-row-num">${id}</span>
+        <span class="block-row-name">${p ? p.name.split(',')[0] : '?'}</span>
+        <span class="block-row-round">Sorteo ${i+1}</span>
+      </div>`;
+    }).join('');
+    document.getElementById('currentRoundCBLabel').textContent = currentIdx + 1;
+  }
+}
+
+function extractSheetId(raw) {
+  const m1 = raw.match(/\/d\/e\/([A-Za-z0-9_-]+)/);
+  if (m1) return { type: 'pub', id: m1[1] };
+  const m2 = raw.match(/\/d\/([A-Za-z0-9_-]+)/);
+  if (m2) return { type: 'edit', id: m2[1] };
+  return null;
+}
+
+function extractGid(raw) {
+  const m = raw.match(/gid=([0-9]+)/);
+  return m ? m[1] : '0';
+}
+
+let autoSyncInterval = null;
+
+function clearSyncCache() {
+  localStorage.removeItem('sorteo_last_sync');
+  console.log('Caché de sincronización limpiado');
+}
+
+async function doSync(silent = false) {
+  let raw = document.getElementById('sheetsUrl')?.value?.trim();
+  if (!raw) raw = localStorage.getItem('sorteo_sheets_url');
+  if (!raw) { if (!silent) alert('Ingresa la URL de Google Sheets primero.'); return false; }
+
+  const dot = document.getElementById('syncDot');
+  const label = document.getElementById('syncLabel');
+  const btn = document.getElementById('btnSync');
+  if (dot) dot.className = 'sync-dot loading';
+  if (label) { label.textContent = 'Sincronizando...'; label.className = 'sync-label-hidden'; }
+  if (!silent && btn) btn.disabled = true;
+
+  function getBaseUrl(url) {
+    const trimmed = url.trim();
+    if (trimmed.includes('output=csv') || trimmed.endsWith('.csv')) return trimmed.split('?')[0] + '?single=true&output=csv';
+    if (trimmed.includes('/d/e/')) return trimmed.split('?')[0] + '?single=true&output=csv';
+    const info = extractSheetId(trimmed);
+    if (!info) return null;
+    const gid = extractGid(trimmed);
+    return info.type === 'pub'
+      ? `https://docs.google.com/spreadsheets/d/e/${info.id}/pub?gid=${gid || '0'}&single=true&output=csv`
+      : `https://docs.google.com/spreadsheets/d/${info.id}/export?format=csv&gid=${gid || '0'}`;
+  }
+
+  const baseUrl = getBaseUrl(raw);
+  if (!baseUrl) {
+    if (dot) dot.className = 'sync-dot err';
+    if (label) { label.textContent = 'Error URL'; label.className = 'sync-label-hidden'; }
+    if (!silent && btn) btn.disabled = false;
+    if (!silent) alert('URL no reconocida.');
+    return false;
+  }
+
+  console.log('URL base:', baseUrl);
+
+  const attempts = [
+    `https://corsproxy.io/?${encodeURIComponent(baseUrl + '&_t=' + Date.now())}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(baseUrl + '&_t=' + Date.now())}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(baseUrl + '&_t=' + Date.now())}`,
+    `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(baseUrl + '&_t=' + Date.now())}`,
+    baseUrl + '&_t=' + Date.now()
+  ];
+
+  let lastErr = null;
+  for (let i = 0; i < attempts.length; i++) {
+    const url = attempts[i];
+    try {
+      console.log(`Intento ${i + 1}/${attempts.length}:`, url.substring(0, 100) + '...');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      if (text.trim().startsWith('<!') || text.trim().startsWith('<html') || text.trim().startsWith('<?xml')) throw new Error('No es CSV');
+      if (text.trim().length < 10) throw new Error('Respuesta vacía');
+      console.log('✓ CSV recibido. Longitud:', text.length);
+      parseSheetsCsv._silent = silent;
+      parseSheetsCsv(text);
+      parseSheetsCsv._silent = false;
+      if (dot) dot.className = 'sync-dot ok';
+      if (label) { label.textContent = 'Vinculado ✓'; label.className = 'sync-label-hidden'; }
+      if (!silent && btn) btn.disabled = false;
+      localStorage.setItem('sorteo_last_sync', Date.now().toString());
+      if (raw) localStorage.setItem('sorteo_sheets_url', raw);
+      return true;
+    } catch(e) { console.error(`Error intento ${i + 1}:`, e.message); lastErr = e; }
+  }
+
+  if (dot) dot.className = 'sync-dot err';
+  if (label) { label.textContent = 'Error'; label.className = 'sync-label-hidden'; }
+  if (!silent && btn) btn.disabled = false;
+  if (!silent) alert('⚠ No se pudo conectar.\n\nVerifica:\n1. Hoja publicada correctamente\n2. URL correcta\n3. Conexión a internet\n4. Usa "PROBAR CONEXIÓN" para diagnóstico\n\nError: ' + (lastErr?.message || 'Desconocido'));
+  return false;
+}
+
+async function syncFromSheets() { await doSync(false); }
+
+async function forceSyncNow() {
+  const statusEl = document.getElementById('autoSyncStatus');
+  statusEl.textContent = 'Forzando sincronización...';
+  statusEl.style.color = 'var(--gold)';
+  clearSyncCache();
+  const success = await doSync(false);
+  if (success) {
+    statusEl.textContent = '✓ Sincronizado';
+    statusEl.style.color = 'var(--teal)';
+  } else {
+    statusEl.textContent = '✗ Error';
+    statusEl.style.color = 'var(--accent)';
+  }
+  setTimeout(() => {
+    const isActive = localStorage.getItem('sorteo_autosync') === '1';
+    statusEl.textContent = isActive ? '↺ Auto-sync activo (30 min)' : 'Auto-sync inactivo';
+    statusEl.style.color = isActive ? 'var(--teal)' : 'var(--text-dim)';
+  }, 3000);
+}
+
+async function testConnection() {
+  const statusEl = document.getElementById('autoSyncStatus');
+  statusEl.textContent = 'Probando conexión...';
+  statusEl.style.color = 'var(--gold)';
+  const raw = document.getElementById('sheetsUrl')?.value?.trim() || localStorage.getItem('sorteo_sheets_url');
+  if (!raw) { statusEl.textContent = '✗ Sin URL'; statusEl.style.color = 'var(--accent)'; return; }
+  function getBaseUrl(url) {
+    const trimmed = url.trim();
+    if (trimmed.includes('output=csv') || trimmed.endsWith('.csv')) return trimmed.split('?')[0] + '?single=true&output=csv';
+    if (trimmed.includes('/d/e/')) return trimmed.split('?')[0] + '?single=true&output=csv';
+    return null;
+  }
+  const baseUrl = getBaseUrl(raw);
+  if (!baseUrl) { statusEl.textContent = '✗ URL inválida'; statusEl.style.color = 'var(--accent)'; return; }
+  console.log('Probando:', baseUrl);
+  const proxies = [
+    { name: 'corsproxy.io', url: `https://corsproxy.io/?${encodeURIComponent(baseUrl)}` },
+    { name: 'allorigins.win', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(baseUrl)}` },
+    { name: 'codetabs.com', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(baseUrl)}` },
+  ];
+  for (const proxy of proxies) {
+    try {
+      statusEl.textContent = `Probando ${proxy.name}...`;
+      const res = await fetch(proxy.url, { signal: AbortSignal.timeout(10000) });
+      const text = await res.text();
+      if (text.length > 50 && !text.includes('<!DOCTYPE')) {
+        statusEl.textContent = `✓ ${proxy.name} OK`;
+        statusEl.style.color = 'var(--teal)';
+        console.log(`Proxy ${proxy.name} funciona. Muestra:`, text.substring(0, 100));
+        setTimeout(() => { statusEl.textContent = 'Auto-sync inactivo'; statusEl.style.color = 'var(--text-dim)'; }, 3000);
+        return;
+      }
+    } catch(e) { console.log(`Proxy ${proxy.name} falló:`, e.message); }
+  }
+  statusEl.textContent = '✗ Todos fallaron';
+  statusEl.style.color = 'var(--accent)';
+  setTimeout(() => { statusEl.textContent = 'Auto-sync inactivo'; statusEl.style.color = 'var(--text-dim)'; }, 3000);
+}
+
+function startAutoSync() {
+  stopAutoSync();
+  clearSyncCache();
+  doSync(true);
+  autoSyncInterval = setInterval(() => { clearSyncCache(); doSync(true); }, 1800000);
+  document.getElementById('autoSyncStatus').textContent = '↺ Auto-sync activo (30 min)';
+  document.getElementById('autoSyncStatus').style.color = 'var(--teal)';
+  localStorage.setItem('sorteo_autosync', '1');
+}
+
+function stopAutoSync() {
+  if (autoSyncInterval) { clearInterval(autoSyncInterval); autoSyncInterval = null; }
+  document.getElementById('autoSyncStatus').textContent = 'Auto-sync inactivo';
+  document.getElementById('autoSyncStatus').style.color = 'var(--text-dim)';
+  localStorage.removeItem('sorteo_autosync');
+}
+
+function parseSheetsCsv(csv) {
+  console.log('Procesando CSV...');
+  function splitCsvLine(line) {
+    const result = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') inQ = !inQ;
+      else if (ch === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    result.push(cur.trim());
+    return result.map(c => c.replace(/^"|"$/g, '').trim());
+  }
+  const rawLines = csv.trim().split('\n');
+  const lines = rawLines.map(splitCsvLine);
+  if (lines.length < 2) { if (!parseSheetsCsv._silent) alert('La hoja parece estar vacía.'); return; }
+  const header = lines[0].map(h => h.replace(/\r/g,'').replace(/^\uFEFF/,'').replace(/^#\s*/,'').toUpperCase().trim());
+  console.log('Headers:', header);
+  const idxJId = header.findIndex(h => h.includes('ID') && h.includes('JURADO'));
+  const idxJRound = header.findIndex(h => h.includes('RONDA') && h.includes('JURADO'));
+  const idxCId = header.findIndex(h => h.includes('ID') && h.includes('CAMBIO'));
+  const idxCRound = header.findIndex(h => h.includes('RONDA') && h.includes('CAMBIO'));
+  if (idxJId < 0 && idxCId < 0) {
+    if (!parseSheetsCsv._silent) alert('No se encontraron columnas válidas.\n\nEncabezados: ' + header.join(', ') + '\n\nEsperados: ID_JURADO, RONDA_JURADO, ID_CAMBIO, RONDA_CAMBIO');
+    return;
+  }
+  const juradoEntries = [], cambioEntries = [];
+  for (let i = 1; i < lines.length; i++) {
+    const row = lines[i];
+    if (!row || row.length < 2) continue;
+    if (idxJId >= 0) {
+      const jId = parseInt(row[idxJId]);
+      if (!isNaN(jId) && jId > 0) {
+        let round = 1;
+        if (idxJRound >= 0 && row[idxJRound] && !isNaN(parseInt(row[idxJRound]))) round = parseInt(row[idxJRound]);
+        juradoEntries.push({ id: jId, round });
+      }
+    }
+    if (idxCId >= 0) {
+      const cId = parseInt(row[idxCId]);
+      if (!isNaN(cId) && cId > 0) {
+        let round = 1;
+        if (idxCRound >= 0 && row[idxCRound] && !isNaN(parseInt(row[idxCRound]))) round = parseInt(row[idxCRound]);
+        cambioEntries.push({ id: cId, round });
+      }
+    }
+  }
+  console.log('Jurado:', juradoEntries, 'Cambio:', cambioEntries);
+  if (juradoEntries.length > 0) {
+    juradoEntries.sort((a, b) => a.round - b.round);
+    const roundMap = {};
+    juradoEntries.forEach(e => { if (!roundMap[e.round]) roundMap[e.round] = []; roundMap[e.round].push(e.id); });
+    STATE.jurado.predefinedBlocks = Object.values(roundMap).map(ids => ids.slice(0, 3));
+    STATE.jurado.currentBlockIndex = 0;
+    STATE.jurado.mode = 'predefinido';
+    setMode('jurado', 'predefinido');
+    renderAdmin('jurado');
+  }
+  if (cambioEntries.length > 0) {
+    cambioEntries.sort((a, b) => a.round - b.round);
+    STATE.cambio.predefinedQueue = cambioEntries.map(e => e.id);
+    STATE.cambio.currentQueueIndex = 0;
+    STATE.cambio.mode = 'predefinido';
+    setMode('cambio', 'predefinido');
+    renderAdmin('cambio');
+  }
+  if (!parseSheetsCsv._silent) {
+    alert(`✓ Sincronización exitosa\n\nJurado: ${juradoEntries.length} en ${Math.ceil(juradoEntries.length/3)} bloques\nCambio: ${cambioEntries.length} turnos`);
+  }
+}
+
+function updateBlockIndicator(lottery) {
+  if (lottery === 'jurado') {
+    const s = STATE.jurado;
+    document.getElementById('juradoRoundNum').textContent = s.roundsDone.length + 1;
+    document.getElementById('juradoRoundsCount').textContent = s.roundsDone.length + (s.roundsDone.length === 1 ? ' ronda' : ' rondas');
+  } else {
+    document.getElementById('cambioRoundNum').textContent = STATE.cambio.resultHistory.length + 1;
+  }
+}
+
+function realizarSorteoJurado() {
+  const s = STATE.jurado;
+  if (s.isSpinning) return;
+  const available = PARTICIPANTS;
+  let winners = [];
+  if (s.mode === 'predefinido' && s.predefinedBlocks.length > 0) {
+    const blockIdx = s.currentBlockIndex;
+    if (blockIdx < s.predefinedBlocks.length) winners = s.predefinedBlocks[blockIdx].map(id => PARTICIPANTS.find(p => p.id === id)).filter(Boolean);
+  }
+  const usedInThisDraw = new Set(winners.map(w => w.id));
+  const stillAvailable = available.filter(p => !usedInThisDraw.has(p.id));
+  while (winners.length < 3 && stillAvailable.length > 0) {
+    const idx = Math.floor(Math.random() * stillAvailable.length);
+    winners.push(stillAvailable.splice(idx, 1)[0]);
+  }
+  if (winners.length === 0) { alert('No hay participantes disponibles.'); return; }
+  s.isSpinning = true;
+  document.getElementById('btnSortearJ').disabled = true;
+  const drumEls = [document.getElementById('drumJ1'), document.getElementById('drumJ2'), document.getElementById('drumJ3')];
+  const numberEls = [document.getElementById('drumJ1Number'), document.getElementById('drumJ2Number'), document.getElementById('drumJ3Number')];
+  const nameEls = [document.getElementById('drumJ1Name'), document.getElementById('drumJ2Name'), document.getElementById('drumJ3Name')];
+  drumEls.forEach(d => d.classList.add('spinning'));
+  let elapsed = 0;
+  const duration = 2800;
+  const ticker = setInterval(() => {
+    elapsed += 80;
+    document.getElementById('statusFillJ').style.width = (elapsed / duration * 100) + '%';
+    const randomize = elapsed < duration * 0.7 || Math.random() > (elapsed - duration * 0.7) / (duration * 0.3) * 0.35;
+    for (let i = 0; i < 3; i++) {
+      const winner = winners[i] || winners[winners.length - 1];
+      if (randomize) {
+        const rnd = available[Math.floor(Math.random() * available.length)];
+        numberEls[i].textContent = rnd.id;
+        nameEls[i].textContent = rnd.name.split(',')[0];
+      } else {
+        numberEls[i].textContent = winner.id;
+        nameEls[i].textContent = winner.name.split(',')[0];
+      }
+    }
+    if (elapsed >= duration) {
+      clearInterval(ticker);
+      drumEls.forEach(d => d.classList.remove('spinning'));
+      for (let i = 0; i < 3; i++) {
+        if (winners[i]) { numberEls[i].textContent = winners[i].id; nameEls[i].textContent = winners[i].name; }
+      }
+      document.getElementById('statusFillJ').style.width = '100%';
+      setTimeout(() => document.getElementById('statusFillJ').style.width = '0%', 800);
+      if (!s.drawCounts) s.drawCounts = {};
+      winners.forEach(w => { if (w) { s.allUsedIds.push(w.id); s.drawCounts[w.id] = (s.drawCounts[w.id] || 0) + 1; } });
+      const roundNum = s.roundsDone.length + 1;
+      s.roundsDone.push({ round: roundNum, winners });
+      if (s.mode === 'predefinido') s.currentBlockIndex = Math.min(s.currentBlockIndex + 1, s.predefinedBlocks.length);
+      s.isSpinning = false;
+      document.getElementById('btnSortearJ').disabled = false;
+      drumEls.forEach(d => spawnParticles(d, 'jurado'));
+      celebrate('jurado');
+      addRoundResultJurado(roundNum, winners);
+      updateBlockIndicator('jurado');
+      if (!document.getElementById('adminModal').classList.contains('hidden')) renderAdmin('jurado');
+    }
+  }, 80);
+}
+
+function addRoundResultJurado(roundNum, winners) {
+  const container = document.getElementById('resultsJContainer');
+  container.style.display = 'block';
+  const list = document.getElementById('resultsJList');
+  const group = document.createElement('div');
+  group.className = 'round-group';
+  group.innerHTML = `<div class="round-group-label">Ronda ${roundNum}</div>` + winners.map((w, i) => `
+    <div class="result-item">
+      <span class="result-pos">${i+1}</span>
+      <span class="result-num">${w.id}</span>
+      <span class="result-name">${w.name}</span>
+    </div>`).join('');
+  list.insertBefore(group, list.firstChild);
+}
+
+function realizarSorteoCambio() {
+  const s = STATE.cambio;
+  if (s.isSpinning) return;
+  const available = PARTICIPANTS;
+  let winner;
+  if (s.mode === 'predefinido' && s.predefinedQueue.length > 0) {
+    const idx = s.currentQueueIndex;
+    if (idx < s.predefinedQueue.length) winner = PARTICIPANTS.find(p => p.id === s.predefinedQueue[idx]);
+  }
+  if (!winner) winner = available[Math.floor(Math.random() * available.length)];
+  const drumEl = document.getElementById('drumCB');
+  const drumNumber = document.getElementById('drumCBNumber');
+  const drumName = document.getElementById('drumCBName');
+  const btnSortear = document.getElementById('btnSortearCB');
+  s.isSpinning = true;
+  btnSortear.disabled = true;
+  drumEl.classList.add('spinning');
+  document.getElementById('autoResetNotice').textContent = '';
+  let elapsed = 0;
+  const duration = 2600;
+  const ticker = setInterval(() => {
+    elapsed += 80;
+    document.getElementById('statusFillC').style.width = (elapsed / duration * 100) + '%';
+    const randomize = elapsed < duration * 0.7 || Math.random() > (elapsed - duration * 0.7) / (duration * 0.3) * 0.35;
+    if (randomize) {
+      const rnd = available[Math.floor(Math.random() * available.length)];
+      drumNumber.textContent = rnd.id;
+      drumName.textContent = rnd.name;
+    } else {
+      drumNumber.textContent = winner.id;
+      drumName.textContent = winner.name;
+    }
+    if (elapsed >= duration) {
+      clearInterval(ticker);
+      drumEl.classList.remove('spinning');
+      drumNumber.textContent = winner.id;
+      drumName.textContent = winner.name;
+      document.getElementById('statusFillC').style.width = '100%';
+      setTimeout(() => document.getElementById('statusFillC').style.width = '0%', 800);
+      s.allUsedIds.push(winner.id);
+      if (!s.drawCounts) s.drawCounts = {};
+      s.drawCounts[winner.id] = (s.drawCounts[winner.id] || 0) + 1;
+      const sorteoNum = s.resultHistory.length + 1;
+      s.resultHistory.push({ sorteoNum, winner });
+      if (s.mode === 'predefinido') s.currentQueueIndex++;
+      s.isSpinning = false;
+      spawnParticles(drumEl, 'cambio');
+      celebrate('cambio');
+      addResultCambio(sorteoNum, winner);
+      updateBlockIndicator('cambio');
+      if (!document.getElementById('adminModal').classList.contains('hidden')) renderAdmin('cambio');
+      const notice = document.getElementById('autoResetNotice');
+      notice.textContent = '↺ Reiniciando en 4 segundos...';
+      let countdown = 4;
+      const cdTimer = setInterval(() => {
+        countdown--;
+        if (countdown > 0) notice.textContent = `↺ Reiniciando en ${countdown} segundo${countdown !== 1 ? 's' : ''}...`;
+        else { clearInterval(cdTimer); notice.textContent = ''; doAutoResetCambio(); }
+      }, 1000);
+    }
+  }, 80);
+}
+
+function doAutoResetCambio() {
+  document.getElementById('drumCBNumber').textContent = '—';
+  document.getElementById('drumCBName').textContent = 'Presione sortear';
+  document.getElementById('btnSortearCB').disabled = false;
+  document.getElementById('autoResetNotice').textContent = '';
+  updateBlockIndicator('cambio');
+  if (!document.getElementById('adminModal').classList.contains('hidden')) renderAdmin('cambio');
+}
+
+function addResultCambio(num, winner) {
+  const container = document.getElementById('resultsCBContainer');
+  container.style.display = 'block';
+  const list = document.getElementById('resultsCBList');
+  const item = document.createElement('div');
+  item.className = 'result-item';
+  item.innerHTML = `<span class="result-pos">${num}</span><span class="result-num">${winner.id}</span><span class="result-name">${winner.name}</span>`;
+  list.insertBefore(item, list.firstChild);
+}
+
+function resetSorteo(lottery) {
+  const label = lottery === 'jurado' ? 'Jurado' : 'Cambio de Jurado';
+  if (!confirm(`¿Reiniciar el sorteo de ${label}? Se perderán los resultados actuales.`)) return;
+  if (lottery === 'jurado') {
+    const s = STATE.jurado;
+    s.roundsDone = []; s.allUsedIds = []; s.drawCounts = {}; s.currentBlockIndex = 0;
+    document.getElementById('resultsJList').innerHTML = '';
+    document.getElementById('resultsJContainer').style.display = 'none';
+    ['J1','J2','J3'].forEach(id => {
+      document.getElementById(`drum${id}Number`).textContent = '—';
+      document.getElementById(`drum${id}Name`).textContent = 'Sortear';
+    });
+    updateBlockIndicator('jurado');
+  } else {
+    const s = STATE.cambio;
+    s.resultHistory = []; s.allUsedIds = []; s.drawCounts = {}; s.currentQueueIndex = 0;
+    document.getElementById('resultsCBList').innerHTML = '';
+    document.getElementById('resultsCBContainer').style.display = 'none';
+    document.getElementById('drumCBNumber').textContent = '—';
+    document.getElementById('drumCBName').textContent = 'Presione sortear';
+    document.getElementById('btnSortearCB').disabled = false;
+    document.getElementById('autoResetNotice').textContent = '';
+    updateBlockIndicator('cambio');
+  }
+  if (!document.getElementById('adminModal').classList.contains('hidden')) renderAdmin(lottery);
+}
+
+function spawnParticles(drumEl, lottery) {
+  const rect = drumEl.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+  const color1 = lottery === 'jurado' ? 'var(--gold)' : 'var(--blue)';
+  const color2 = lottery === 'jurado' ? 'var(--gold-light)' : 'var(--blue-light)';
+  for (let i = 0; i < 18; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const angle = (Math.PI * 2 * i) / 18, dist = 60 + Math.random() * 70;
+    p.style.cssText = `left:${cx}px;top:${cy}px;--tx:${Math.cos(angle)*dist}px;--ty:${Math.sin(angle)*dist}px;background:${Math.random()>0.5?color1:color2};animation-duration:${0.8+Math.random()*0.6}s;animation-delay:${Math.random()*0.2}s`;
+    document.body.appendChild(p);
+    p.addEventListener('animationend', () => p.remove());
+  }
+}
+
+function celebrate(lottery) {
+  const cel = document.getElementById('celebration');
+  cel.style.display = 'block';
+  cel.innerHTML = '';
+  const colors = lottery === 'jurado' ? ['#c9a84c','#f0d080','#e63946','#ffffff','#a07830'] : ['#3a7bd5','#6fa3f7','#2ec4b6','#ffffff','#1a4aaa'];
+  for (let i = 0; i < 50; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti-piece';
+    c.style.cssText = `left:${Math.random()*100}vw;top:-20px;background:${colors[Math.floor(Math.random()*colors.length)]};width:${4+Math.random()*8}px;height:${4+Math.random()*8}px;border-radius:${Math.random()>0.5?'50%':'0'};animation-duration:${1.5+Math.random()*2}s;animation-delay:${Math.random()*0.8}s`;
+    cel.appendChild(c);
+  }
+  setTimeout(() => cel.style.display = 'none', 4000);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeAdmin(); document.getElementById('pinModal').classList.add('hidden'); }
+});
+
+window.addEventListener('load', () => {
+  buildPinDots();
+  const DEFAULT_SHEETS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR7JhDUSMf85QRi-KPfQluLkCu-g5_XoS1NBwLXPADNuJv6JVT0hds_YQU4Q7tOL-0wL_JVCoT1OvkN/pub?gid=1616368863&single=true&output=csv';
+  const saved = localStorage.getItem('sorteo_sheets_url');
+  const urlToUse = saved || DEFAULT_SHEETS_URL;
+  if (!saved) localStorage.setItem('sorteo_sheets_url', DEFAULT_SHEETS_URL);
+  const sheetsInput = document.getElementById('sheetsUrl');
+  if (sheetsInput) sheetsInput.value = urlToUse;
+  const syncLabel = document.getElementById('syncLabel');
+  const syncDot = document.getElementById('syncDot');
+  if (syncLabel) { syncLabel.textContent = 'Conectando...'; syncLabel.className = 'sync-label-hidden'; }
+  clearSyncCache();
+  setTimeout(() => {
+    doSync(true).then(success => {
+      if (success) {
+        console.log('✓ Sincronización inicial exitosa');
+        if (syncDot) syncDot.className = 'sync-dot ok';
+        if (syncLabel) { syncLabel.textContent = 'Vinculado'; syncLabel.className = 'sync-label-hidden'; }
+      } else {
+        console.warn('✗ No se pudo sincronizar');
+        if (syncDot) syncDot.className = 'sync-dot err';
+        if (syncLabel) { syncLabel.textContent = 'Sin conexión'; syncLabel.className = 'sync-label-hidden'; }
+      }
+    });
+  }, 1000);
+  updateBlockIndicator('jurado');
+  updateBlockIndicator('cambio');
+});
+</script>
+</body>
+</html>
